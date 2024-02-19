@@ -6,7 +6,9 @@ My goal was to check if small changes in the ultrasonic frequency are possible, 
 
 It uses platformio to compile and upload the firmware. See the platformio.ini file for specific parameters.
 ## Hardware needed
-To upload the program in the microcontroler, you need an USB to TTL UART adapter, and a switch to reset the MCU when flashing, such as described in this [youtube video](https://youtu.be/uuZZEVhCWIg?si=PVHfgXFxWOHiAKNO&t=233)
+To upload the program in the microcontroler, you need an USB to TTL UART adapter, and a switch to reset the MCU when flashing, such as described in this [youtube video](https://youtu.be/uuZZEVhCWIg?si=PVHfgXFxWOHiAKNO&t=233).
+
+You can also build a programmer with autoreset using the schematics [in stcgal's documentation](https://github.com/grigorig/stcgal/blob/master/doc/FAQ.md#how-can-i-use-the-autoreset-feature).
 
 ## Optional frequency control
 You can use the J2 connector to add 2 buttons: 
