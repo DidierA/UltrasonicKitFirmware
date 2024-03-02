@@ -32,9 +32,11 @@ unsigned int time_div = 150 ;// 12.5 micro seconds at 12MHz
  * main routine will update counter when should_update == 1 */
 char should_update = 0 ;
 
-// Pins that goes to TC4427
+// Pins that goes to TC4427 : P32 and P33
 #define Pin1 P32
 #define Pin2 P33
+#define PinByte P3
+#define PinMask 0b00001100   // P32 and P33 in P3
 
 // Pins used for programming and button control, linked to J2
 #define PinButUp P31          // 
@@ -55,8 +57,7 @@ void set_timer0 () {
 /* Timer0 interrupt routine */
 void tm0_isr() __interrupt(1)  {
     // invert both pins
-    Pin1 = !Pin1 ;
-    Pin2 = !Pin2 ;
+    PinByte = ( PinByte ^ PinMask ) & 0xFF ;
 
     // handle button push TODO: debounce 
     if ((PinButUp == 0) && (but_up == 1)) { // Button up pressed
