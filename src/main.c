@@ -3,8 +3,6 @@
 // based on https://github.com/platformio/platform-intel_mcs51/tree/master/examples/stc-blink
 // and page 121 of "STC15F101E series MCU datasheet"
 
-
-
 // STC15F104 : 2 timers, T0 and T2
 //#include <reg51.h>     // old header from SDCC
 #include "STC15Fxx.h"  // Official header from STC-ISP
@@ -16,21 +14,18 @@
 #define T1MS (65536-FOSC/1000) // inital value of timer for 1 millisecond
 #define T1uS (65536 - FOSC / 1000000) // initial value for 1 microsecond
 
-#define T40kHz (65536 - 150 ) // initial value of timer for half period of 40KHz (12.5 micro seconds)
-
 // Global used for Led flashing
 unsigned int count ;
 
-// state of buttons 
-char but_up = 0x0 ;
-char but_down = 0x0 ;
+// state of buttons
+enum ButtonStates { ON, OFF};
+enum ButtonStates but_plus = OFF ;
+enum ButtonStates but_minus = OFF ;
 
-// Timer divider
-unsigned int time_div = 150 ;// 12.5 micro seconds at 12MHz
-/* Updating timer counter initial value does not work from within the ISR routine,
- * so it sets the variable value, and sets shpuld_update to 1
- * main routine will update counter when should_update == 1 */
-char should_update = 0 ;
+enum Timers { T0, T2} ;
+
+// Timer 0 divider
+unsigned int time_div = 150 ;// 12.5 micro seconds at 12MHz : half period for 40kHz
 
 // Pins that goes to TC4427 : P32 and P33
 #define Pin1 P32
@@ -39,50 +34,31 @@ char should_update = 0 ;
 #define PinMask 0b00001100   // P32 and P33 in P3
 
 // Pins used for programming and button control, linked to J2
-#define PinButUp P31          // 
-#define PinButDown P30       // INT4/
+#define PinButPlus P31          // 
+#define PinButMinus P30       // INT4/
 
 // Pin linkinf LED to ground. LED is lit when this pin is at 0.
 #define PinLED P34
 
-void set_timer0() ;
-
-/* utility function to set timer1 divider*/
-void set_timer0 () {
-    unsigned int new_value = 65536 - time_div ;
-    TL0 = new_value & 0xFF ;   //initial timer0 low byte
-    TH0 = new_value >> 8 ; //initial timer0 high byte
+/* utility function to set timerX divider*/
+void set_timer (enum Timers timer, unsigned int value) {
+    unsigned int new_value = 65536 - value ;
+    switch(timer) {
+        case T0:
+            TL0 = new_value & 0xFF ;   //initial timer0 low byte
+            TH0 = new_value >> 8 ; //initial timer0 high byte
+            break ;
+        case T2:
+            T2L = new_value & 0xFF ;
+            T2H = new_value >> 8 ;
+            break ;
+    }
 }
 
 /* Timer0 interrupt routine */
 void tm0_isr() __interrupt(1)  {
     // invert both pins
     PinByte = ( PinByte ^ PinMask ) & 0xFF ;
-
-    // handle button push TODO: debounce 
-    if ((PinButUp == 0) && (but_up == 1)) { // Button up pressed
-        time_div-- ; // if button up is pressed, decrease divider.
-        should_update = 1 ;
-        but_up = 0 ;
-        PinLED = 1 ; // turn LED off while button is pressed
-    }
-
-    if ((PinButUp == 1) && (but_up == 0)) {
-        but_up = 1 ;
-        PinLED = 0 ; // turn LED back on 
-    }
-
-    if ((PinButDown == 0) && (but_down == 1)) { 
-        time_div++ ;
-        should_update = 1 ;
-        but_down = 0 ;
-        PinLED = 1 ;
-    }
-
-    if ((PinButDown == 1)  && (but_down == 0)) {
-        but_down = 1 ;
-        PinLED = 0 ;
-    }
 }
 
 void main()
@@ -106,8 +82,8 @@ void main()
     PinLED = 0x00 ; //turn LED On
 
     // turn pull-up on on button pins 
-    PinButUp = 1 ;
-    PinButDown = 1;
+    PinButPlus = 1 ;
+    PinButMinus = 1;
 
     // initial output values
     Pin1 = 1 ;
@@ -117,16 +93,36 @@ void main()
     AUXR = 0x80 ;    //timer0 work in 1T mode
     TMOD = 0x00 ;    //set timer0 as mode0 (16-bit auto-reload)
 
-    set_timer0() ;
+    set_timer(T0, time_div) ;
 
     TR0 = 1;    //timer0 start running
     ET0 = 1;    //enable timer0 interrupt
     EA = 1; //open global interrupt switch
 
     while (1) {
-        if (should_update) {
-            set_timer0() ;
-            should_update=0 ;
+        // handle button push TODO: debounce 
+        if ((PinButPlus == 0) && (but_plus == OFF)) { // Button Plus pressed
+            time_div-- ; // if button up is pressed, decrease divider.
+            set_timer(T0, time_div) ;
+            but_plus = ON ;
+            PinLED = 1 ; // turn LED off while button is pressed
+        }
+
+        if ((PinButPlus == 1) && (but_plus == ON)) {
+            but_plus = OFF ;
+            PinLED = 0 ; // turn LED back on 
+        }
+
+        if ((PinButMinus == 0) && (but_minus == OFF)) { 
+            time_div++ ;
+            set_timer(T0, time_div) ;
+            but_minus = ON ;
+            PinLED = 1 ;
+        }
+
+        if ((PinButMinus == 1)  && (but_minus == ON)) {
+            but_minus = OFF ;
+            PinLED = 0 ;
         }
     }; // loop
 
