@@ -22,11 +22,13 @@ You can omit the two 10k pull-up resistors and just connect the push buttons bet
 Each press of a button will briefly turn the LED down to acknowledge, and increment or decrement the frequency divider by one step. The clock is set at 12MHz and the initial divider value is 150, setting the half period to 12.5 micro seconds (150 counts at 12 MHz).
 
 ## Timings
-This firmware drives the ultrasonic transducers at 39.98 kHz, where the original chip achieves 39.01kHz (see screen captures below)
+This firmware drives the ultrasonic transducers at 40.08 kHz, where the original chip achieves 39.01kHz (see screen captures below)
 ![](images/Original.png)
-![](images/ThisFirmware_WithTimings.png)
+![](images/afterCommit.png)
 
-This frequency is OK to be able to levitate small beads, just as the original. You can adjust the frequency with the up and down buttons, and check the output on an oscilloscope, and/or the current consumption on the 12V input. At he highest current consuption, you should be at the transducer's resonnant frequency and achive maximum effect.
+This frequency is OK to levitate small beads, just as the original.
+
+You can adjust the frequency with the up and down buttons, and check the output on an oscilloscope, and/or the current consumption on the 12V input. At he highest current consuption, you should be at the transducer's resonnant frequency and achive maximum effect.
 
 ## Documentation
 + [Ultrasonic kit manual](https://m.media-amazon.com/images/I/A1v9YJLCl6L.pdf)
