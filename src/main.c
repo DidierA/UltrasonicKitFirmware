@@ -11,21 +11,22 @@
 
 // #define FOSC 11059200L
 #define FOSC 12000000L
-#define T1MS (65536-FOSC/1000) // inital value of timer for 1 millisecond
-#define T1uS (65536 - FOSC / 1000000) // initial value for 1 microsecond
+#define T1MS (FOSC/1000) // inital value of timer for 1 millisecond
+#define T5MS (5*(FOSC/1000)) // initial value for 5 milllisecond
+#define T1US (FOSC/1000000) // initial value for 1 microsecond
 
 // Global used for Led flashing
 unsigned int count ;
-
-// state of buttons
-enum ButtonStates { ON, OFF};
-enum ButtonStates but_plus = OFF ;
-enum ButtonStates but_minus = OFF ;
 
 enum Timers { T0, T2} ;
 
 // Timer 0 divider
 unsigned int time_div = 150 ;// 12.5 micro seconds at 12MHz : half period for 40kHz
+
+/* Updating timer counter initial value does not work from within the ISR routine,
+  * so it sets the variable value, and sets shpuld_update to 1
+  * main routine will update counter when should_update == 1 */
+uint8_t should_update = 0 ;
 
 // Pins that goes to TC4427 : P32 and P33
 #define Pin1 P32
@@ -37,7 +38,7 @@ unsigned int time_div = 150 ;// 12.5 micro seconds at 12MHz : half period for 40
 #define PinButPlus P31          // 
 #define PinButMinus P30       // INT4/
 
-// Pin linkinf LED to ground. LED is lit when this pin is at 0.
+// Pin linking LED to ground. LED is lit when this pin is at 0.
 #define PinLED P34
 
 /* utility function to set timerX divider*/
@@ -55,10 +56,84 @@ void set_timer (enum Timers timer, unsigned int value) {
     }
 }
 
-/* Timer0 interrupt routine */
+/* Timer0 interrupt routine: signal generation */
 void tm0_isr() __interrupt(1)  {
     // invert both pins
     PinByte = ( PinByte ^ PinMask ) & 0xFF ;
+}
+
+/* Timer2 interrupt routine: butons handling */
+/* will be called every 5 ms */
+void tm2_isr() __interrupt(12) {
+    // state of buttons
+    enum ButtonStates { ON, OFF, ON_OFF, OFF_ON};
+    static enum ButtonStates but_plus = OFF ;
+    static enum ButtonStates but_minus = OFF ;
+
+    // Button Plus pressed
+    if ((PinButPlus == 0)) {
+        switch(but_plus) {
+            case OFF:   // register state transition from OFF to ON
+                but_plus = OFF_ON ;
+                break ;
+            case ON_OFF:    // bounce: cancel state transition
+                but_plus = ON ;
+                break ;
+            case OFF_ON:    // confirmed press
+                time_div-- ; // if button Plus is pressed, decrease divider.
+                should_update = 1 ;
+                but_plus = ON ;
+                PinLED = 1 ; // turn LED off while button is pressed
+                break ;                
+        }
+    }
+    // Button Plus released
+    if ((PinButPlus == 1)) {
+        switch(but_plus) {
+            case ON:    // register state transition
+                but_plus = ON_OFF ;
+                break ;
+            case OFF_ON:    // bounce: cancel state transition
+                but_plus = OFF ;
+                break ;
+            case ON_OFF: // confirmed release
+                but_plus = OFF ;
+                PinLED = 0 ; // turn LED back on
+                break ;
+        }
+    }
+    // Button Minus pressed
+    if (PinButMinus == 0) {
+        switch(but_minus) {
+            case OFF:
+                but_minus = OFF_ON ;
+                break ;
+            case ON_OFF:
+                but_minus = ON ;
+                break ;
+            case OFF_ON:
+                time_div++ ;
+                should_update = 1 ;
+                but_minus = ON ;
+                PinLED = 1 ;
+                break ;
+        }
+    }
+    // Button Minus released
+    if (PinButMinus == 1){
+        switch (but_minus) {
+            case ON:
+                but_minus = ON_OFF ;
+                break ;
+            case OFF_ON:
+                but_minus  = OFF ;
+                break ;
+            case ON_OFF:
+                but_minus = OFF ;
+                PinLED = 0 ;
+                break ;
+        }
+    }
 }
 
 void main()
@@ -90,40 +165,28 @@ void main()
     Pin2 = 0 ;
 
     // set timers:
-    AUXR = 0x80 ;    //timer0 work in 1T mode
+    // timer0 used for ultrasonic signal generation
+    // timer2 used for button debounce
+    AUXR = 0b10010100 ; // B7=1: Timer0 in 1T mode
+                        // B4=1: run Timer2
+                        // B3=0: Timer2 as timer
+                        // B2=1: Timer2 in 1T mode
+
     TMOD = 0x00 ;    //set timer0 as mode0 (16-bit auto-reload)
 
     set_timer(T0, time_div) ;
-
+    set_timer(T2, T5MS) ; 
+    
+    IE2 = 0b00000100 ;   // enable timer2 interrupt
     TR0 = 1;    //timer0 start running
     ET0 = 1;    //enable timer0 interrupt
     EA = 1; //open global interrupt switch
 
     while (1) {
-        // handle button push TODO: debounce 
-        if ((PinButPlus == 0) && (but_plus == OFF)) { // Button Plus pressed
-            time_div-- ; // if button up is pressed, decrease divider.
-            set_timer(T0, time_div) ;
-            but_plus = ON ;
-            PinLED = 1 ; // turn LED off while button is pressed
+        if (should_update) {
+             set_timer(T0, time_div) ;
+             should_update=0 ;
         }
-
-        if ((PinButPlus == 1) && (but_plus == ON)) {
-            but_plus = OFF ;
-            PinLED = 0 ; // turn LED back on 
-        }
-
-        if ((PinButMinus == 0) && (but_minus == OFF)) { 
-            time_div++ ;
-            set_timer(T0, time_div) ;
-            but_minus = ON ;
-            PinLED = 1 ;
-        }
-
-        if ((PinButMinus == 1)  && (but_minus == ON)) {
-            but_minus = OFF ;
-            PinLED = 0 ;
-        }
-    }; // loop
+    } // loop
 
 }
